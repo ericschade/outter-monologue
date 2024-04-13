@@ -1,0 +1,11 @@
+Flask
+flask-login
+pymongo
+python-dotenv
+streamlit
+SpeechRecognition
+transformers
+scikit-learn
+numpy
+pydub
+Flask-CORS
