@@ -201,8 +201,8 @@ def search_thoughts_route():
 def before_request():
     # set the current user in the global namespace because streamlit doesnt have auth features
     # without this, requests from streamlit will not have a user_id
-    session['user_id'] = '6619680beb81d71a1f936c28'
-    pass
+    session['user_id'] = os.getenv('USER_ID', None)
+    
 
 def update_inspiration_words():
     """

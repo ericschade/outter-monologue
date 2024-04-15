@@ -31,10 +31,15 @@ The app is built using Python Flask for the backend, MongoDB as the database, an
 ### Quickstart
 
 1. Clone the repository and navigate into the project directory.
+    - create a .env file, copying the .env-example and filling in the required keys and uri's
+        - user id will be left blank until below
 2. Install the required Python dependencies: `pip install -r requirements.txt`
-3. Ensure MongoDB is running.
-4. Start the Flask app: `python app.py`
-5. Open a new terminal and launch the Streamlit frontend: `streamlit run your_script.py`
+3. Start the Flask app: `flask run -p 8000`
+    - Go to the backend url: http://localhost:8000/register
+    - create new account
+    - go to mongo db(via compass/mongosh/atlas) and retrieve the user id created in the db
+    - add the string to your .env file
+4. Open a new terminal and launch the Streamlit frontend: `streamlit run streamlit_app.py`
 
 ## License
 
