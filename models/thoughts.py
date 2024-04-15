@@ -7,7 +7,7 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-def create_thought(inspiration_words, raw_text, semantic_vector: np.array):
+def create_thought(user_id: str, inspiration_words, raw_text, semantic_vector: np.array):
     """
     Creates a new thought in the database.
     """
@@ -17,7 +17,8 @@ def create_thought(inspiration_words, raw_text, semantic_vector: np.array):
         thought_id = thoughts_collection.insert_one({
             "inspiration_words": inspiration_words,
             "raw_text": raw_text,
-            "semantic_vector": semantic_vector.tolist()
+            "semantic_vector": semantic_vector.tolist(),
+            "user_id": user_id
         }).inserted_id
         logging.info(f"Thought created with ID: {thought_id}")
         return str(thought_id)
@@ -46,28 +47,28 @@ def get_thought_by_id(thought_id):
         logging.error(f"Error retrieving thought by ID: {e}")
         return None
 
-def get_all_thoughts():
+def get_all_thoughts(user_id: str):
     """
     Retrieves all thoughts from the database.
     """
     db = get_database()
     thoughts_collection = db.thoughts
     try:
-        thoughts = list(thoughts_collection.find({}))
+        thoughts = list(thoughts_collection.find({"user_id": user_id}))
         logging.info("All thoughts retrieved successfully.")
         return thoughts
     except Exception as e:
         logging.error(f"Error retrieving all thoughts: {e}")
         return []
 
-def search_thoughts(query_vector, top_n=5):
+def search_thoughts(user_id: str, query_vector, top_n=5):
     """
     Searches thoughts based on cosine similarity with the query vector.
     """
     db = get_database()
     thoughts_collection = db.thoughts
     try:
-        thoughts = list(thoughts_collection.find({}))
+        thoughts = list(thoughts_collection.find({"user_id": user_id}))
         thought_vectors = np.array([thought["semantic_vector"] for thought in thoughts])
         query_vector = np.array(query_vector).reshape(1, -1)
         similarities = cosine_similarity(thought_vectors, query_vector).flatten()

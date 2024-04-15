@@ -9,3 +9,4 @@ scikit-learn
 numpy
 pydub
 Flask-CORS
+apscheduler

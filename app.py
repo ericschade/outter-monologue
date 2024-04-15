@@ -1,15 +1,16 @@
 from flask import Flask, session, request, redirect, url_for, render_template, flash, jsonify, g
-from flask_login import login_required, current_user
 from flask_session import Session
 from flask_cors import CORS  # Added for CORS support
+from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 import os
 from pymongo import MongoClient
 import speech_recognition as sr
 from pydub import AudioSegment
+from bson.objectid import ObjectId
 import io
 # Removed bcrypt import here since hashing and checking are moved to models/user.py
-from models.user import hash_password, check_password, create_user, get_user
+from models.user import hash_password, check_password, create_user, get_user, update_user_inspiration, reset_active_user_inspiration_words
 from inspiration_words import get_random_words  # Importing the get_random_words function    
 from models.thoughts import create_thought, get_all_thoughts, search_thoughts
 from utils.text_embedding import generate_text_embedding
@@ -79,13 +80,18 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/inspiration')
-@login_required
 def inspiration():
     try:
-        db.
-        words = get_random_words()  # Using the imported function
-        app.logger.info('Successfully fetched inspiration words')
-        return jsonify(words=words)
+        user_id = ObjectId(session.get('user_id', None))
+        user = db.users.find_one({'_id': user_id})
+        if not user.get('inspiration_words', None):
+            words = get_random_words()
+            update_user_inspiration(user_id, words)
+            app.logger.info('Successfully generated new inspiration words')
+        else:
+            words = user.get('inspiration_words')
+            app.logger.info('Successfully fetched inspiration words')
+        return jsonify(words=words, user=str(user_id))
     except Exception as e:
         app.logger.error('Error fetching inspiration words: %s', e)
         return jsonify(error="An error occurred while fetching inspiration words"), 500
@@ -122,9 +128,10 @@ def upload_voice():
 
 @app.route('/thoughts', methods=['GET', 'POST'])
 def thoughts():
+    user_id = ObjectId(session.get('user_id', None))
     if request.method == 'GET':
         try:
-            thoughts = get_all_thoughts()
+            thoughts = get_all_thoughts(str(user_id))
             thought_list = []
             for thought in thoughts:
                 thought_list.append({
@@ -152,7 +159,8 @@ def thoughts():
 
     try:
         thought_embedding = generate_text_embedding(raw_text)
-        create_thought(inspiration_words, raw_text, thought_embedding)
+        create_thought(str(user_id), inspiration_words, raw_text, thought_embedding)
+        reset_active_user_inspiration_words(user_id=user_id)
         app.logger.info('Thought saved successfully')
         return jsonify({"message": "Thought saved successfully"}), 200
     except Exception as e:
@@ -161,6 +169,7 @@ def thoughts():
 
 @app.route('/search_thoughts', methods=['POST'])
 def search_thoughts_route():
+    user_id = ObjectId(session.get('user_id', None))
     if not request.is_json:
         app.logger.error('Invalid request format')
         return jsonify({"error": "Invalid request format"}), 400
@@ -174,7 +183,7 @@ def search_thoughts_route():
 
     try:
         query_embedding = generate_text_embedding(query_text)
-        similar_thoughts = search_thoughts(query_embedding, top_n=5)
+        similar_thoughts = search_thoughts(str(user_id), query_embedding, top_n=5)
         similar_thoughts_formatted = [
             {
                 'id': str(thought['_id']),
@@ -190,8 +199,27 @@ def search_thoughts_route():
 
 @app.before_request
 def before_request():
-    # set the current user in the global namespace before each request
-    g.user = current_user
+    # set the current user in the global namespace because streamlit doesnt have auth features
+    # without this, requests from streamlit will not have a user_id
+    session['user_id'] = '6619680beb81d71a1f936c28'
+    pass
+
+def update_inspiration_words():
+    """
+    Updates the inspiration words for all users every 24 hours.
+    """
+    try:
+        users = db.users.find({})
+        for user in users:
+            words = get_random_words()
+            update_user_inspiration(user['_id'], words)
+        app.logger.info('Successfully updated inspiration words for all users')
+    except Exception as e:
+        app.logger.error(f"Error updating inspiration words: {str(e)}")
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=update_inspiration_words, trigger="interval", days=1)
+scheduler.start()
 
 if __name__ == '__main__':
     app.logger.info('Starting the Flask application on port 8000')
