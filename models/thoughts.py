@@ -7,7 +7,7 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-def create_thought(user_id: str, inspiration_words, raw_text, semantic_vector: np.array):
+def create_thought(user_id: str, inspiration_words, raw_text, semantic_vector: np.array) -> str:
     """
     Creates a new thought in the database.
     """

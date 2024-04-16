@@ -14,6 +14,7 @@ from models.user import hash_password, check_password, create_user, get_user, up
 from inspiration_words import get_random_words  # Importing the get_random_words function    
 from models.thoughts import create_thought, get_all_thoughts, search_thoughts
 from utils.text_embedding import generate_text_embedding
+from utils.langchain_controller import thought_cascade
 
 
 app = Flask(__name__)
@@ -159,7 +160,8 @@ def thoughts():
 
     try:
         thought_embedding = generate_text_embedding(raw_text)
-        create_thought(str(user_id), inspiration_words, raw_text, thought_embedding)
+        thought_id = create_thought(str(user_id), inspiration_words, raw_text, thought_embedding)
+        thought_cascade(str(user_id), thought_id, raw_text)
         reset_active_user_inspiration_words(user_id=user_id)
         app.logger.info('Thought saved successfully')
         return jsonify({"message": "Thought saved successfully"}), 200

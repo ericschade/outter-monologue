@@ -10,3 +10,6 @@ numpy
 pydub
 Flask-CORS
 apscheduler
+langchain
+langchain-openai
+langchain-anthropic
