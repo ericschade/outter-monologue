@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from bson import ObjectId
 from db import get_database
+from typing import List
 
 class Character(BaseModel):
     """
@@ -8,13 +9,17 @@ class Character(BaseModel):
 
     Attributes:
     - name: The name of the character.
-    - relationship: A description of the character in relation to the narrator of a story, written in a third person perspective without explicitly mentioning the narratator. For example: "Best Friend", or "deceased grandmother"
+    - relationship: A description of the character in relation to the narrator of a story, written in a third person perspective without explicitly mentioning the narrator. For example: "Best Friend", or "deceased grandmother"
     - description: A short, accurate description of the character from the perspective of the narrator of the story, written in a third person perspective.
+    - user_id: The ID of the user associated with the character.
+    - thoughts: A list of thought IDs associated with the character.
 
     """
     name: str
     relationship: str
     description: str
+    user_id: str
+    thoughts: List[str]
 
 def update_character(user_id: str, name: str, relationship: str, description: str, thought_id: str) -> ObjectId:
     if not user_id:

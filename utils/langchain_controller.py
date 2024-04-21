@@ -8,25 +8,61 @@ from models.characters import Character, update_character
 from db import get_database
 from flask import session
 import numpy as np
+from bson.objectid import ObjectId
+from utils.text_embedding import generate_text_embedding
 
 character_model = ChatOpenAI(model="gpt-3.5-turbo-1106")
 character_model.temperature = 0.0
 
 analysis_model = ChatOpenAI(model="gpt-3.5-turbo-1106")
+analysis_model.temperature = 0.6
 
 # maybe convert to generalized 'entities' later on
 character_extraction_prompt = PromptTemplate.from_template(
     template="""
     You are provided with a story or thought from the perspective of a narrator.
-    Describe the non-narrator characters in the story or thought.
+    Describe the non-narrator, living characters from the story or thought, and 
+    describe them as json objects. Only describe living entities, and only if 
+    they have a name used in the thought.
 
-    Use only information provided in the story or thought to describe the characters. Do not make any assumptions about the characters' personalities or add any additional information about the characters not explicitly mentioned in the thought.
+    Use only information provided in the story or thought to describe the characters. 
+    Do not make any assumptions about the characters' personalities or add any 
+    additional information about the characters not explicitly mentioned in the thought.
     Write any descriptions from a third-person perspective.
     
     Story:
     {thought}
     """
 )
+
+analysis_prompt = PromptTemplate.from_template(
+    template="""
+    Overview:
+    You are skilled in psychological analysis. A person was given two words as inspiration and provided a thought or 
+    memory that was related to the prompt words in their head. You must analyze their response to determine
+    their underlying personality traits.
+    
+    Instructions:
+    You must analyze the thought provided below to determine underlying personality trait(s) of the 
+    person who is speaking. Explain your analysis in detail, including anything unexpected about 
+    which words inspired the person to have this thought
+
+    Label the person's response as one or more of the following: Emotional, Factual, Anecdotal. Do not explain your reasoning.
+    
+    Respond in the following format:
+    - Traits: [LIST_OF_PERSONALITY_TRAITS_HERE]
+    - Analysis: YOUR_ANALYSIS_HERE
+    - Category: ASSIGNED_THOUGHT_CATEGORY_HERE
+
+    Context:
+    Inspiration words:
+    [{prompt_word1}, {prompt_word2}]
+    
+    Person's thought:
+    {thought}
+    """
+)
+
 
 @tool
 def update_character_tool(user_id: str, name: str, relationship: str, thought_id: str) -> None:
@@ -38,12 +74,12 @@ def update_character_tool(user_id: str, name: str, relationship: str, thought_id
     except Exception as e:
         print(f"Error updating character: {e}")
 
-@tool
-def agent_create_thought(user_id: str, inspiration_words: List[str], raw_text: str, semantic_vector: np.array):
-    """
-    Create a new thought in the database.
-    """
-    create_thought(user_id, inspiration_words, raw_text, semantic_vector)
+# @tool
+# def agent_create_thought(user_id: str, inspiration_words: List[str], raw_text: str, semantic_vector: np.array):
+#     """
+#     Create a new thought in the database.
+#     """
+#     create_thought(user_id, inspiration_words, raw_text, semantic_vector)
 
 @tool
 def analyze_thought(user_id: str, thought_id: str) -> None:
@@ -63,24 +99,45 @@ def analyze_thought(user_id: str, thought_id: str) -> None:
     except Exception as e:
         print(f"Error analyzing thought: {e}")
 
-
 character_model_with_extraction_tool = character_model.bind_tools([Character])
 
 character_model_with_update_tool = character_model.bind_tools([update_character])
 
 character_chain = character_extraction_prompt | character_model_with_extraction_tool | JsonOutputToolsParser()
 
+analysis_chain = analysis_prompt | analysis_model
+
 def thought_cascade(user_id: str, thought_id: str, thought_text: str) -> None:
     """
-    Extracts character entities from a given thought and updates the database with the extracted entities.
+    Initiates a several step process of handling new thoughts. 
+        1. Extracts character entities from a given thought and updates the database with the extracted entities.
+        2. Analyzes the thought and updates the database wwith the new analysis.
     """
     db = get_database()
+    
+    prompt_words = db.users.find_one({'_id': ObjectId(user_id)})['inspiration_words']
+
     try:
         character_entities = character_chain.invoke({"thought": thought_text})
         print("found characters: ", character_entities)
         for entity in character_entities:
             args = entity['args']
-            # agentify this interaction to update based on previous stories as well
+            # TODO: agentify this interaction to update based on previous stories as well
             update_character(user_id, args['name'], args['relationship'], args['description'], thought_id)
     except Exception as e:
         print(f"Error extracting character entities: {e}")
+
+    try:
+        # invoke the thought analysis chain
+        analysis = analysis_chain.invoke({"thought": thought_text, "prompt_word1": prompt_words[0], "prompt_word2": prompt_words[1]})
+
+        # create an embedding of the analysis
+        analysis_embedding = generate_text_embedding(analysis.content)
+
+        # save to the database
+        db.thoughts.update_one({'_id': ObjectId(thought_id)}, {'$set': {'analysis': analysis.content, 'analysis_embedding': analysis_embedding.tolist()}})
+
+    except Exception as e:
+        print(f"Error analyzing thought: {e}")
+
+    
