@@ -14,7 +14,8 @@ from models.user import hash_password, check_password, create_user, get_user, up
 from inspiration_words import get_random_words  # Importing the get_random_words function    
 from models.thoughts import create_thought, get_all_thoughts, search_thoughts
 from utils.text_embedding import generate_text_embedding
-from utils.langchain_controller import thought_cascade
+from utils.langchain_controller import thought_cascade, ask_myself_gen_resp, create_analysis
+from models.characters import character_str
 
 
 app = Flask(__name__)
@@ -199,13 +200,72 @@ def search_thoughts_route():
         app.logger.error(f"Error processing search query: {str(e)}", exc_info=True)
         return jsonify({"error": "Error processing search query"}), 500
 
+@app.route('/similar_analysis', methods=['POST'])
+def similar_analysis():
+    user_id = ObjectId(session.get('user_id', None))
+    if not request.is_json:
+        app.logger.error('Invalid request format')
+        return jsonify({"error": "Invalid request format"}), 400
+
+    data = request.get_json()
+    query_text = data.get('query_text')
+
+    if not query_text:
+        app.logger.error('No query provided')
+        return jsonify({"error": "No thought embedding provided"}), 400
+
+    query_embedding = generate_text_embedding(query_text)
+
+    try:
+        similar_thoughts = search_thoughts(str(user_id), query_embedding, top_n=5, field="analysis_embedding")
+        similar_thoughts_formatted = [
+            {
+                'id': str(thought['_id']),
+                'inspiration_words': thought['inspiration_words'],
+                'analysis': thought['analysis']
+            } for thought in similar_thoughts
+        ]
+        app.logger.info('Similar thoughts retrieved successfully')
+        return jsonify(similar_thoughts=similar_thoughts_formatted), 200
+    except Exception as e:
+        app.logger.error(f"Error retrieving similar thoughts: {str(e)}", exc_info=True)
+        return jsonify({"error": "Error retrieving similar thoughts"}), 500
+
+@app.route('/ask_myself', methods=['POST'])
+def ask_myself():
+    user_id = ObjectId(session.get('user_id', None))
+    if not request.is_json:
+        app.logger.error('Invalid request format')
+        return jsonify({"error": "Invalid request format"}), 400
+
+    data = request.get_json()
+    query_text = data.get('query')
+
+    # first, get the 5 most similar thoughts to the query
+    query_embedding = generate_text_embedding(query_text)
+    similar_thoughts = search_thoughts(str(user_id), query_embedding, top_n=5)
+    similar_analysis = search_thoughts(str(user_id), query_embedding, top_n=5, field="analysis_embedding")
+    characters = db.characters.find({'thoughts': {"$in": [thought['_id'] for thought in similar_thoughts]}})
+    
+    if not similar_thoughts or not similar_analysis:
+        app.logger.error('Missing required fields')
+        return jsonify({"error": "Missing required fields"}), 400
+
+        # feed the query and similar thoughts to langchain
+    try:
+        response = ask_myself_gen_resp(query_text, similar_thoughts, similar_analysis, characters)
+        app.logger.info('Response generated successfully')
+        return jsonify({"response": response}), 200
+    except Exception as e:
+        app.logger.error(f"Error asking yourself: {str(e)}", exc_info=True)
+        return jsonify({"error": "Error generating response"}), 500
+
 @app.before_request
 def before_request():
     # set the current user in the global namespace because streamlit doesnt have auth features
     # without this, requests from streamlit will not have a user_id
     session['user_id'] = os.getenv('USER_ID', None)
     
-
 def update_inspiration_words():
     """
     Updates the inspiration words for all users every 24 hours.
@@ -222,6 +282,7 @@ def update_inspiration_words():
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=update_inspiration_words, trigger="interval", days=1)
 scheduler.start()
+
 
 if __name__ == '__main__':
     app.logger.info('Starting the Flask application on port 8000')

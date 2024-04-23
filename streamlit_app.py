@@ -1,6 +1,47 @@
 import streamlit as st
 import requests
 
+# Function to send a chat query to the backend and receive a response
+def send_chat_query(query):
+    try:
+        response = requests.post("http://localhost:8000/ask_myself", json={"query": query})
+        if response.status_code == 200:
+            return response.json()["response"]
+        else:
+            st.error("Failed to retrieve chat response")
+            return ""
+    except Exception as e:
+        st.error(f"An error occurred while retrieving chat response: {str(e)}")
+        return ""
+
+# Modify the Streamlit UI to include the chat functionality
+def display_chat_page():
+    st.title('Chat with Your Thoughts')
+    chat_history = st.empty()
+    query = st.text_input("Enter your query:", "")
+    chat_button = st.button("Chat")
+    chat_history.write(f"You: {query}")
+
+    if chat_button and query:
+        response = send_chat_query(query)
+        if response:
+            chat_history.write(f"Bot: {response}")
+        else:
+            st.write("No response found.")
+
+# Modify the Streamlit UI to include the chat functionality
+def display_chat_page():
+    st.title('Chat with Your Thoughts')
+    query = st.text_input("Enter your query:", "")
+    chat_button = st.button("Chat")
+
+    if chat_button and query:
+        response = send_chat_query(query)
+        if response:
+            st.write(response)
+        else:
+            st.write("No response found.")
+
 # Function to fetch inspiration words from Flask backend
 def fetch_inspiration_words():
     try:
@@ -86,7 +127,7 @@ def display_search_page():
 # Conditional rendering based on user navigation
 def main():
     st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Submit Thought", "Retrieve Thoughts", "Search Thoughts"])
+    page = st.sidebar.radio("Go to", ["Submit Thought", "Retrieve Thoughts", "Search Thoughts", "Chat with Thoughts"])
 
     if page == "Submit Thought":
         st.title('Outter-Monologue')
@@ -106,6 +147,8 @@ def main():
         display_thoughts_page()
     elif page == "Search Thoughts":
         display_search_page()
+    elif page == "Chat with Thoughts":
+        display_chat_page()
 
 if __name__ == "__main__":
     main()

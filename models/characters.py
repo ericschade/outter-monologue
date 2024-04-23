@@ -34,3 +34,7 @@ def update_character(user_id: str, name: str, relationship: str, description: st
         upsert=True
     ).upserted_id
     return character_id
+
+def character_str(character: Character) -> str:
+    return f"Name: {character.name} \n Relationship to you: {character.relationship} \n Description: {character.description}"
+    return f"Character(name={character.name}, relationship={character.relationship}, description={character.description}, user_id={character.user_id}, thoughts={character.thoughts})"

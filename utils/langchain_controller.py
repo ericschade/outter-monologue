@@ -1,6 +1,7 @@
 from langchain_core.tools import tool
-from models.thoughts import create_thought
-from typing import List
+from models.thoughts import create_thought, thought_str
+from models.characters import character_str
+from typing import List, Dict
 from langchain_openai.chat_models import ChatOpenAI
 from langchain.output_parsers import JsonOutputToolsParser
 from langchain.prompts import PromptTemplate
@@ -63,6 +64,11 @@ analysis_prompt = PromptTemplate.from_template(
     """
 )
 
+ask_myself_prompt = PromptTemplate.from_template(
+    template="""
+    You are a person with the following relevant thoughts, opinions, and stories
+"""
+)
 
 @tool
 def update_character_tool(user_id: str, name: str, relationship: str, thought_id: str) -> None:
@@ -127,7 +133,67 @@ def thought_cascade(user_id: str, thought_id: str, thought_text: str) -> None:
     except Exception as e:
         print(f"Error extracting character entities: {e}")
 
+    create_analysis(thought_id, thought_text, prompt_words)
+
+def ask_myself_gen_resp(query: str, thoughts: List[str], analyses: List[Dict], characters: List[Dict]) -> str:
+    """
+    Generates a response by invoking a langchain chain with the given query, thoughts, and analyses.
+    Returns the result of the chain invocation.
+    """
     try:
+        # Create a prompt template for asking myself
+        ask_myself_prompt = PromptTemplate.from_template(
+            template="""
+            You are a person with the following thoughts: 
+        
+            Thoughts:
+            {thoughts}
+            
+            You are aware of the following traits and characteristics about yourself:
+            
+            Analyses:
+            {analyses}
+
+            You have the following characters in your life:
+
+            Characters:
+            {characters}
+
+            You must respond to the following query, which you have asked of yourself:
+            {query}
+
+
+            Only use the provided context to answer questions personally. Do not make any assumptions about yourself. If you do not know the answer, respond with "I don't know."
+            """
+        )
+        
+        # Create the chain with the ask myself prompt
+        ask_myself_chain = ask_myself_prompt | analysis_model
+
+        # Invoke the chain with the provided query, thoughts, and analyses
+        response = ask_myself_chain.invoke({
+            "query": query,
+            "thoughts": "\n".join([thought_str(thought) for thought in thoughts]),
+            "analyses": "\n".join([analysis["analysis"] for analysis in analyses]),
+            "characters": "\n".join([character_str(character) for character in characters])
+        })
+        
+        print(response.json)
+
+        # Return the result of the chain invocation
+        return response.content
+    
+    except Exception as e:
+        print(f"Error generating response: {e}")
+        return ""
+
+
+def create_analysis(thought_id: str, thought_text: str, prompt_words: List[str]) -> None:
+    """
+    Creates an analysis entity in the database.
+    """
+    try:
+        db = get_database()
         # invoke the thought analysis chain
         analysis = analysis_chain.invoke({"thought": thought_text, "prompt_word1": prompt_words[0], "prompt_word2": prompt_words[1]})
 
@@ -136,8 +202,6 @@ def thought_cascade(user_id: str, thought_id: str, thought_text: str) -> None:
 
         # save to the database
         db.thoughts.update_one({'_id': ObjectId(thought_id)}, {'$set': {'analysis': analysis.content, 'analysis_embedding': analysis_embedding.tolist()}})
-
+        print(f"Analysis created successfully for {thought_id}.")
     except Exception as e:
         print(f"Error analyzing thought: {e}")
-
-    

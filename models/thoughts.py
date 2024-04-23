@@ -61,7 +61,7 @@ def get_all_thoughts(user_id: str):
         logging.error(f"Error retrieving all thoughts: {e}")
         return []
 
-def search_thoughts(user_id: str, query_vector, top_n=5):
+def search_thoughts(user_id: str, query_vector, top_n=5, field="semantic_vector"):
     """
     Searches thoughts based on cosine similarity with the query vector.
     """
@@ -69,7 +69,7 @@ def search_thoughts(user_id: str, query_vector, top_n=5):
     thoughts_collection = db.thoughts
     try:
         thoughts = list(thoughts_collection.find({"user_id": user_id}))
-        thought_vectors = np.array([thought["semantic_vector"] for thought in thoughts])
+        thought_vectors = np.array([thought[field] for thought in thoughts])
         query_vector = np.array(query_vector).reshape(1, -1)
         similarities = cosine_similarity(thought_vectors, query_vector).flatten()
         sorted_indices = np.argsort(-similarities)[:top_n]
@@ -81,3 +81,7 @@ def search_thoughts(user_id: str, query_vector, top_n=5):
     except Exception as e:
         logging.error(f"Error searching thoughts: {e}")
         return []
+    
+def thought_str(thought):
+    """ Returns a string representation of a thought. Format it in a conversational way, explaining that the inspiration words are the words that inspired the thought, and the raw text is the actual thought."""
+    return f"The words {thought['inspiration_words']} inspired you to think about: {thought['raw_text']}"
