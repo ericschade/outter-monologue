@@ -45,16 +45,30 @@ def display_chat_page():
 # Function to fetch inspiration words from Flask backend
 def fetch_inspiration_words():
     try:
-        response = requests.get("http://localhost:8000/inspiration")
+        response = requests.get("http://localhost:8000/inspiration", json={"refresh": False})
         if response.status_code == 200:
             return response.json()["words"]
         else:
             st.error("Failed to fetch inspiration words")
-            return [], []
+            return []
     except Exception as e:
         st.error(f"An error occurred while fetching inspiration words: {str(e)}")
         st.error(f"Error details: {e}")
-        return [], []
+        return []
+
+# Function to refresh inspiration words
+def refresh_inspiration_words():
+    try:
+        response = requests.get("http://localhost:8000/inspiration", json={"refresh": True})
+        if response.status_code == 200:
+            st.success("Inspiration words have been refreshed!")
+            return response.json()["words"]
+        else:
+            st.error("Failed to refresh inspiration words")
+            return []
+    except Exception as e:
+        st.error(f"An error occurred while refreshing inspiration words: {str(e)}")
+        st.error(f"Error details: {e}")
 
 # Function to send user's thought to the backend
 def submit_thought(inspiration_words, raw_text):
@@ -124,25 +138,34 @@ def display_search_page():
         else:
             st.write("No similar thoughts found.")
 
+def display_thought_submit_page():
+    st.title('Outter-Monologue')
+    # Fetch and display inspiration words
+    inspiration_words = fetch_inspiration_words()
+    inspiration_words_text = st.empty()
+    if inspiration_words:
+        inspiration_words_text.markdown(f"Today's inspiration words are: {', '.join(inspiration_words)}")
+    else:
+        st.write("No inspiration words available today.")
+    # User input for thoughts
+    user_thought = st.text_area("What are your thoughts?", "")
+    submit_button = st.button("Submit")
+    refresh_button = st.button("Shuffle Words")
+    # Process submission
+    if submit_button and user_thought:
+        submit_thought(inspiration_words, user_thought)
+    # refresh inspiration words
+    if refresh_button:
+        inspiration_words = refresh_inspiration_words()
+        inspiration_words_text.markdown(f"Today's inspiration words are: {', '.join(fetch_inspiration_words())}")
+
 # Conditional rendering based on user navigation
 def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio("Go to", ["Submit Thought", "Retrieve Thoughts", "Search Thoughts", "Chat with Thoughts"])
 
     if page == "Submit Thought":
-        st.title('Outter-Monologue')
-        # Fetch and display inspiration words
-        inspiration_words = fetch_inspiration_words()
-        if inspiration_words:
-            st.write(f"Today's inspiration words are: {', '.join(inspiration_words)}")
-        else:
-            st.write("No inspiration words available today.")
-        # User input for thoughts
-        user_thought = st.text_area("What are your thoughts?", "")
-        submit_button = st.button("Submit")
-        # Process submission
-        if submit_button and user_thought:
-            submit_thought(inspiration_words, user_thought)
+        display_thought_submit_page()
     elif page == "Retrieve Thoughts":
         display_thoughts_page()
     elif page == "Search Thoughts":

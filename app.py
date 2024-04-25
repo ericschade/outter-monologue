@@ -83,10 +83,14 @@ def logout():
 
 @app.route('/inspiration')
 def inspiration():
+    if not request.is_json:
+        app.logger.error('Invalid request format')
+        return jsonify({"error": "Invalid request format"}), 400
     try:
         user_id = ObjectId(session.get('user_id', None))
         user = db.users.find_one({'_id': user_id})
-        if not user.get('inspiration_words', None):
+        data = request.get_json()
+        if (not user.get('inspiration_words', None)) or (data.get('refresh', False)):
             words = get_random_words()
             update_user_inspiration(user_id, words)
             app.logger.info('Successfully generated new inspiration words')
