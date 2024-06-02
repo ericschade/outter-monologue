@@ -4,6 +4,7 @@ from pymongo.errors import DuplicateKeyError
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import logging
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 
@@ -18,7 +19,8 @@ def create_thought(user_id: str, inspiration_words, raw_text, semantic_vector: n
             "inspiration_words": inspiration_words,
             "raw_text": raw_text,
             "semantic_vector": semantic_vector.tolist(),
-            "user_id": user_id
+            "user_id": user_id,
+            "created_at": str(datetime.now())
         }).inserted_id
         logging.info(f"Thought created with ID: {thought_id}")
         return str(thought_id)
@@ -68,7 +70,7 @@ def search_thoughts(user_id: str, query_vector, top_n=5, field="semantic_vector"
     db = get_database()
     thoughts_collection = db.thoughts
     try:
-        thoughts = list(thoughts_collection.find({"user_id": user_id}))
+        thoughts = list(thoughts_collection.find({"user_id": user_id, field: {"$exists": True}}))
         thought_vectors = np.array([thought[field] for thought in thoughts])
         query_vector = np.array(query_vector).reshape(1, -1)
         similarities = cosine_similarity(thought_vectors, query_vector).flatten()

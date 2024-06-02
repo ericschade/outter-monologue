@@ -83,9 +83,6 @@ def logout():
 
 @app.route('/inspiration')
 def inspiration():
-    if not request.is_json:
-        app.logger.error('Invalid request format')
-        return jsonify({"error": "Invalid request format"}), 400
     try:
         user_id = ObjectId(session.get('user_id', None))
         user = db.users.find_one({'_id': user_id})

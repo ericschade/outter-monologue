@@ -144,26 +144,26 @@ def ask_myself_gen_resp(query: str, thoughts: List[str], analyses: List[Dict], c
         # Create a prompt template for asking myself
         ask_myself_prompt = PromptTemplate.from_template(
             template="""
-            You are a person with the following thoughts: 
+            You are an assistant for your boss, who has expressed the following thoughts: 
         
             Thoughts:
             {thoughts}
             
-            You are aware of the following traits and characteristics about yourself:
+            You are aware of the following traits and characteristics about your boss:
             
             Analyses:
             {analyses}
 
-            You have the following characters in your life:
+            Your boss have the following characters in their life:
 
             Characters:
             {characters}
 
-            You must respond to the following query, which you have asked of yourself:
+            You must respond to the following query about your boss. It may be a question, a request for information, or a prompt for a response:
             {query}
 
 
-            Only use the provided context to answer questions personally. Do not make any assumptions about yourself. If you do not know the answer, respond with "I don't know."
+            Only use the provided context to answer questions or converse personally. Do not make any assumptions about your boss's life. If you do not know the answer, respond with "I don't know."
             """
         )
         
